@@ -443,23 +443,6 @@ function logView() {
       h('details', { class: 'more' }, h('summary', null, 'Copy text / image separately instead'),
         h('div', { class: 'stack' }, bb.el, artBlock(b))));
   });
-  // One-tap deep link: #/log?business=<id>&post=<facebook url>
-  // and a pending referral remembered when the member tapped Copy.
-  // Both pre-fill this form so logging is one paste + one tap.
-  (function prefillLog() {
-    let bizId = null, postUrl = '';
-    try {
-      const q = new URLSearchParams((location.hash.split('?')[1] || ''));
-      bizId = q.get('business') || q.get('biz') || null;
-      postUrl = q.get('post') || q.get('url') || '';
-    } catch (e) {}
-    if (!bizId) {
-      try { const p = JSON.parse(store.get('tcsa_pending') || 'null'); if (p && p.business_id) bizId = p.business_id; } catch (e) {}
-    }
-    if (postUrl) { try { link.value = decodeURIComponent(postUrl); } catch (e) { link.value = postUrl; } }
-    if (bizId && D.biz[bizId]) { pick.value = bizId; pick.dispatchEvent(new Event('change')); }
-  })();
-
   const link = h('input', { id: 'logLink', type: 'url', required: true, inputmode: 'url', placeholder: 'https://www.facebook.com/groups/…' });
   const pasteBtn = h('button', { class: 'btn quiet sm', type: 'button', onclick: async () => {
     try { const t = (await navigator.clipboard.readText()).trim(); if (t) link.value = t; else link.focus(); }
@@ -468,6 +451,31 @@ function logView() {
   const note = h('input', { id: 'logNote', type: 'text', placeholder: 'Optional, e.g. "needs a roof cleaned in Punta Gorda"' });
   const st = h('p', { class: 'status', role: 'status' });
   const btn = h('button', { class: 'btn block', type: 'submit' }, 'Log referral');
+
+  // One-tap deep link: #/log?business=<id>&post=<facebook url>
+  // and a pending referral remembered when the member tapped Copy.
+  // Both pre-fill this form so logging is one paste + one tap.
+  // NOTE: link/btn above must be defined BEFORE this runs — it used
+  // to run first and crashed with "Cannot access 'link' before
+  // initialization" when opening a pre-filled Log link directly.
+  (function prefillLog() {
+    let bizId = null, postUrl = '';
+    try {
+      const q = new URLSearchParams((location.hash.split('?')[1] || ''));
+      bizId = q.get('business') || q.get('biz') || null;
+      postUrl = q.get('post') || q.get('url') || '';
+    } catch (e) {}
+    try {
+      const sq = new URLSearchParams(location.search || '');
+      if (!bizId) bizId = sq.get('business') || sq.get('biz') || null;
+      if (!postUrl) postUrl = sq.get('post') || sq.get('url') || '';
+    } catch (e) {}
+    if (!bizId) {
+      try { const p = JSON.parse(store.get('tcsa_pending') || 'null'); if (p && p.business_id) bizId = p.business_id; } catch (e) {}
+    }
+    if (postUrl) { try { link.value = decodeURIComponent(postUrl); } catch (e) { link.value = postUrl; } }
+    if (bizId && D.biz[bizId]) { pick.value = bizId; pick.dispatchEvent(new Event('change')); }
+  })();
 
   const form = h('form', { class: 'card', onsubmit: async (ev) => {
     ev.preventDefault();

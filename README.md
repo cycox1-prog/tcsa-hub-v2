@@ -44,8 +44,8 @@ Only the front-end in `hub/` changed.
      collapsed under the same details element.
 
 4. **Cache busting**
-   - `hub/index.html` now loads `styles.css?v=copy2`,
-     `config.js?v=copy2`, `app.js?v=copy2`.
+   - `hub/index.html` now loads `styles.css?v=copy3`,
+     `config.js?v=copy3`, `app.js?v=copy3`.
 
 ## What did NOT change
 
@@ -71,6 +71,6 @@ Only the front-end in `hub/` changed.
   Log and referral-card views, added Log pre-fill, fixed the
   router to ignore `?…` after the hash, added `?business&post`
   handling in the boot redirect.
-- `hub/index.html` — version strings `race2` → `copy2`.
+- `hub/index.html` — version strings `race2` → `copy3`.
 - `hub/styles.css` — `.onetap` spacing for the big buttons.
 - Everything else is an exact copy of the original.

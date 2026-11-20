@@ -98,59 +98,38 @@ async function saveImage(blob, url, name) {
 // on the member's own timeline. So this copies the blurb text AND the
 // artwork to the clipboard instead, for pasting into a comment in the
 // Facebook app.
-// First try: one clipboard item holding both text and image, so one
-// paste in the comment puts both in. If the phone will not hold both
-// at once, fall back to two taps: tap 1 copies the text (paste it),
-// tap 2 copies the image (paste it in the same comment).
-async function copyForComment(biz, blurbText) {
-  let blob = null;
-  try { blob = await loadPng(artUrl(biz)); } catch (e) { blob = null; }
-  if (blob && window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
-    try {
-      await navigator.clipboard.write([new ClipboardItem({
-        'text/plain': new Blob([blurbText], { type: 'text/plain' }),
-        'image/png': blob
-      })]);
-      return 'copied-both';
-    } catch (e) { /* fall through to text-only, then image on next tap */ }
-  }
-  await copyText(blurbText);
-  return blob ? 'text-only' : 'text-only-no-image';
-}
-
+// Tested 2026-11-20 on iPhone: one clipboard item holding BOTH text
+// and image does NOT work — only the image pastes in Facebook.
+// iOS keeps one thing on the clipboard at a time, so the reliable
+// flow is two taps, two pastes, in the same comment:
+//   tap 1 copies the TEXT — paste it in the comment, do not submit yet
+//   tap 2 copies the IMAGE — paste it in the same comment, then submit
 function oneTapEl(biz, getBlurb) {
   const st = h('p', { class: 'status', role: 'status' });
-  let textCopiedOnly = false;
+  let textCopied = false;
   const btn = h('button', { class: 'btn gold block', type: 'button', onclick: async () => {
     const c = getBlurb ? getBlurb() : null;
     if (!c) { setStatus(st, 'No blurb yet for this business. Ask your admin to add one.', 'err'); return; }
     btn.disabled = true;
     try {
       store.set('tcsa_pending', JSON.stringify({ business_id: biz.id }));
-      if (textCopiedOnly) {
+      if (!textCopied) {
+        await copyText(c.body);
+        textCopied = true;
+        btn.textContent = 'Tap 2 — Copy image';
+        setStatus(st, 'Text copied — paste it in your Facebook comment (do not submit yet), then come back and tap this button again for the image.', 'ok');
+      } else {
         const blob = await loadPng(artUrl(biz));
         await copyImage(blob);
-        textCopiedOnly = false;
+        textCopied = false;
         btn.textContent = 'Copy text + image — for a Facebook comment';
-        setStatus(st, 'Image copied — paste it in the same Facebook comment, then tap Log it below.', 'ok');
-      } else {
-        setStatus(st, 'Copying…');
-        const r = await copyForComment(biz, c.body);
-        if (r === 'copied-both') {
-          setStatus(st, 'Text + image copied — open the Facebook post, tap Comment, and paste. Then tap Log it below.', 'ok');
-        } else if (r === 'text-only') {
-          textCopiedOnly = true;
-          btn.textContent = 'Copy image next — tap after pasting the text';
-          setStatus(st, 'Text copied — paste it in your Facebook comment, then come back and tap this button again for the image.', 'ok');
-        } else {
-          setStatus(st, 'Text copied — paste it in your Facebook comment, then tap Log it below.', 'ok');
-        }
+        setStatus(st, 'Image copied — paste it in the same Facebook comment, then submit it. Tap Log it below when done.', 'ok');
       }
     } catch (e) {
       setStatus(st, 'Copy was blocked. Use Copy text and Copy image below.', 'err');
     }
     btn.disabled = false;
-  } }, 'Copy text + image — for a Facebook comment');
+  } }, 'Tap 1 — Copy text');
   const logBtn = h('a', { class: 'btn ghost block', href: '#/log?business=' + encodeURIComponent(biz.id) }, 'Log it — 1 tap after commenting');
   logBtn.addEventListener('click', () => store.set('tcsa_pending', JSON.stringify({ business_id: biz.id })));
   return h('div', { class: 'stack onetap' }, btn, logBtn, st);
@@ -458,7 +437,7 @@ function logView() {
       b.id === me.business_id && h('p', { class: 'err-box small' }, 'This is your own business. You can log it, but it doesn\'t earn race points.'),
       oneTapEl(b, () => bb.current()),
       h('ol', { class: 'steps' },
-        h('li', null, h('div', null, h('h3', null, 'Copy it, then paste it in a comment'), h('p', { class: 'hint' }, 'One tap above copies the text and artwork together. Open the Facebook post in the Facebook app, tap Comment, and paste it there.'))),
+        h('li', null, h('div', null, h('h3', null, 'Copy it, then paste it in a comment'), h('p', { class: 'hint' }, 'Tap 1 copies the text — paste it in the comment, do not submit yet. Tap 2 copies the image — paste it in the same comment, then submit.'))),
         h('li', null, h('div', null, h('h3', null, 'Copy the post link'),
           h('p', { class: 'hint' }, 'On the Facebook post, tap Share, then Copy link, then paste it below.')))),
       h('details', { class: 'more' }, h('summary', null, 'Copy text / image separately instead'),

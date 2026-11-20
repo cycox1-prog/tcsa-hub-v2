@@ -15,13 +15,14 @@ Only the front-end in `hub/` changed.
 
 ## What changed — one-tap
 
-1. **Copy text + image — for a Facebook comment, in one tap**
-   - New `copyForComment()` + `oneTapEl()` in `hub/app.js`.
-   - First tries one clipboard item holding both text and image,
-     so one paste in the Facebook comment puts both in.
-   - If the phone will not hold both at once, tap 1 copies the
-     text (paste it), then the button changes to "Copy image next"
-     — tap 2 copies the image (paste it in the same comment).
+1. **Copy text + image — for a Facebook comment, in 2 taps**
+   - New `oneTapEl()` in `hub/app.js`.
+   - Tested 2026-11-20 on iPhone: one clipboard item holding both
+     text and image does NOT work — only the image pastes in
+     Facebook. iOS keeps one thing on the clipboard at a time.
+   - So Tap 1 copies the TEXT — paste it in the comment, do not
+     submit yet. Tap 2 copies the IMAGE — paste it in the same
+     comment, then submit.
    - The old Copy text / Copy image buttons are still there, under
      “Copy text / image separately instead”.
 
@@ -43,8 +44,8 @@ Only the front-end in `hub/` changed.
      collapsed under the same details element.
 
 4. **Cache busting**
-   - `hub/index.html` now loads `styles.css?v=copy1`,
-     `config.js?v=copy1`, `app.js?v=copy1`.
+   - `hub/index.html` now loads `styles.css?v=copy2`,
+     `config.js?v=copy2`, `app.js?v=copy2`.
 
 ## What did NOT change
 
@@ -70,6 +71,6 @@ Only the front-end in `hub/` changed.
   Log and referral-card views, added Log pre-fill, fixed the
   router to ignore `?…` after the hash, added `?business&post`
   handling in the boot redirect.
-- `hub/index.html` — version strings `race2` → `copy1`.
+- `hub/index.html` — version strings `race2` → `copy2`.
 - `hub/styles.css` — `.onetap` spacing for the big buttons.
 - Everything else is an exact copy of the original.

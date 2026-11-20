@@ -91,59 +91,67 @@ async function saveImage(blob, url, name) {
   window.open(url, '_blank', 'noopener'); return 'opened';
 }
 
-// ---------------------------------------------------------------- one-tap post
-// One tap shares the blurb text AND the artwork together, so the member
-// does not have to copy text, then copy the image, then paste twice.
-// On phones this opens the native share sheet (pick Facebook). Everywhere
-// else it copies text + image to the clipboard in one go, with a
-// sequential copy as a fallback.
-async function sharePost(biz, blurbText) {
+// ---------------------------------------------------------------- one-tap copy for a Facebook comment
+// A TCSA referral is NOT a post to the member's own Facebook page.
+// It is a comment reply on someone else's ask post. The native share
+// sheet cannot do that — sharing to Facebook only makes a new post
+// on the member's own timeline. So this copies the blurb text AND the
+// artwork to the clipboard instead, for pasting into a comment in the
+// Facebook app.
+// First try: one clipboard item holding both text and image, so one
+// paste in the comment puts both in. If the phone will not hold both
+// at once, fall back to two taps: tap 1 copies the text (paste it),
+// tap 2 copies the image (paste it in the same comment).
+async function copyForComment(biz, blurbText) {
   let blob = null;
   try { blob = await loadPng(artUrl(biz)); } catch (e) { blob = null; }
-  if (blob) {
-    const file = new File([blob], (biz.name || 'artwork').replace(/\W+/g, '-') + '.png', { type: 'image/png' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ text: blurbText, files: [file] });
-      return 'shared';
-    }
-    if (navigator.share) {
-      try { await navigator.share({ text: blurbText, files: [file] }); return 'shared'; }
-      catch (e) { if (e && e.name === 'AbortError') throw e; }
-    }
-  }
-  try {
-    if (blob && window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+  if (blob && window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+    try {
       await navigator.clipboard.write([new ClipboardItem({
         'text/plain': new Blob([blurbText], { type: 'text/plain' }),
         'image/png': blob
       })]);
-      return 'copied';
-    }
-  } catch (e) { /* fall through to sequential copy */ }
+      return 'copied-both';
+    } catch (e) { /* fall through to text-only, then image on next tap */ }
+  }
   await copyText(blurbText);
-  if (blob) { try { await copyImage(blob); } catch (e) {} }
-  return 'copied';
+  return blob ? 'text-only' : 'text-only-no-image';
 }
 
 function oneTapEl(biz, getBlurb) {
   const st = h('p', { class: 'status', role: 'status' });
+  let textCopiedOnly = false;
   const btn = h('button', { class: 'btn gold block', type: 'button', onclick: async () => {
     const c = getBlurb ? getBlurb() : null;
     if (!c) { setStatus(st, 'No blurb yet for this business. Ask your admin to add one.', 'err'); return; }
-    btn.disabled = true; setStatus(st, 'Opening share…');
+    btn.disabled = true;
     try {
       store.set('tcsa_pending', JSON.stringify({ business_id: biz.id }));
-      const r = await sharePost(biz, c.body);
-      setStatus(st, r === 'shared'
-        ? 'Shared — post it in Facebook, then tap Log it below.'
-        : 'Text and image copied — paste them together in your Facebook reply, then tap Log it below.', 'ok');
+      if (textCopiedOnly) {
+        const blob = await loadPng(artUrl(biz));
+        await copyImage(blob);
+        textCopiedOnly = false;
+        btn.textContent = 'Copy text + image — for a Facebook comment';
+        setStatus(st, 'Image copied — paste it in the same Facebook comment, then tap Log it below.', 'ok');
+      } else {
+        setStatus(st, 'Copying…');
+        const r = await copyForComment(biz, c.body);
+        if (r === 'copied-both') {
+          setStatus(st, 'Text + image copied — open the Facebook post, tap Comment, and paste. Then tap Log it below.', 'ok');
+        } else if (r === 'text-only') {
+          textCopiedOnly = true;
+          btn.textContent = 'Copy image next — tap after pasting the text';
+          setStatus(st, 'Text copied — paste it in your Facebook comment, then come back and tap this button again for the image.', 'ok');
+        } else {
+          setStatus(st, 'Text copied — paste it in your Facebook comment, then tap Log it below.', 'ok');
+        }
+      }
     } catch (e) {
-      if (e && e.name === 'AbortError') setStatus(st, '');
-      else setStatus(st, 'Sharing was blocked. Use Copy text and Copy image below.', 'err');
+      setStatus(st, 'Copy was blocked. Use Copy text and Copy image below.', 'err');
     }
     btn.disabled = false;
-  } }, 'Share to Facebook — text + image');
-  const logBtn = h('a', { class: 'btn ghost block', href: '#/log?business=' + encodeURIComponent(biz.id) }, 'Log it — 1 tap after posting');
+  } }, 'Copy text + image — for a Facebook comment');
+  const logBtn = h('a', { class: 'btn ghost block', href: '#/log?business=' + encodeURIComponent(biz.id) }, 'Log it — 1 tap after commenting');
   logBtn.addEventListener('click', () => store.set('tcsa_pending', JSON.stringify({ business_id: biz.id })));
   return h('div', { class: 'stack onetap' }, btn, logBtn, st);
 }
@@ -450,14 +458,14 @@ function logView() {
       b.id === me.business_id && h('p', { class: 'err-box small' }, 'This is your own business. You can log it, but it doesn\'t earn race points.'),
       oneTapEl(b, () => bb.current()),
       h('ol', { class: 'steps' },
-        h('li', null, h('div', null, h('h3', null, 'Share it, then post your reply'), h('p', { class: 'hint' }, 'One tap above shares the text and artwork together. Then post it in Facebook.'))),
+        h('li', null, h('div', null, h('h3', null, 'Copy it, then paste it in a comment'), h('p', { class: 'hint' }, 'One tap above copies the text and artwork together. Open the Facebook post in the Facebook app, tap Comment, and paste it there.'))),
         h('li', null, h('div', null, h('h3', null, 'Copy the post link'),
           h('p', { class: 'hint' }, 'On the Facebook post, tap Share, then Copy link, then paste it below.')))),
       h('details', { class: 'more' }, h('summary', null, 'Copy text / image separately instead'),
         h('div', { class: 'stack' }, bb.el, artBlock(b))));
   });
   // One-tap deep link: #/log?business=<id>&post=<facebook url>
-  // and a pending referral remembered when the member tapped Share.
+  // and a pending referral remembered when the member tapped Copy.
   // Both pre-fill this form so logging is one paste + one tap.
   (function prefillLog() {
     let bizId = null, postUrl = '';
@@ -584,9 +592,9 @@ async function cardView(id) {
     h('div', { class: 'card' },
       oneTapEl(b, () => bb.current()),
       h('ol', { class: 'steps' },
-        h('li', null, h('div', null, h('h3', null, 'Share it, then open the post'),
+        h('li', null, h('div', null, h('h3', null, 'Copy it, then open the post'),
           h('a', { class: 'btn ghost block', href: r.post_url, target: '_blank', rel: 'noopener' }, 'Open Facebook post'))),
-        h('li', null, h('div', null, h('h3', null, 'Post it, then mark it done'), doneBtn, doneSt))),
+        h('li', null, h('div', null, h('h3', null, 'Paste it in a comment, then mark it done'), doneBtn, doneSt))),
       h('details', { class: 'more' }, h('summary', null, 'Copy text / image separately instead'),
         h('div', { class: 'stack' }, bb.el, artBlock(b)))),
     h('div', { class: 'card' },
